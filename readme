@@ -1,4 +1,4 @@
-conda create -n reward_random1 python=3.10
+conda create -n help-seeking python=3.10
 
 conda install pytorch==1.12.1 torchvision==0.13.1 torchaudio==0.12.1 cudatoolkit=11.3 -c pytorch
 
