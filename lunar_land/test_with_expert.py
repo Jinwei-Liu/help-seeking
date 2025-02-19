@@ -30,7 +30,7 @@ def is_triggered(a_variance, reward_var_val, threshold):
     return total_uncertain > threshold
 
 
-def collect_test_data(use_expert, triggerway, threshold, env, agent, expert_agent, opt, episodes):
+def collect_test_data(use_expert, triggerway, threshold, env, agent, expert_agent, opt, episodes, noise_level=0):
 
     rewards_per_episode = []  # 用于存储每个回合的总奖励
     call_times = 0
@@ -236,5 +236,72 @@ def test_with_expert(env, agent, expert_agent, opt, episodes=1000, use_saved_dat
     plot_results(output_folder, triggerways, thresholds, mean_results, var_results, call_expert_times, rewards_by_triggerway)
 
 
-def test_with_expert_and_noise(env, agent, expert_agent, opt, episodes=1000, use_saved_data=True):
-    pass
+# 处理噪声情况下的求援的准确性
+def plot_rewards_by_triggerway(output_folder, triggerways, noise_levels, rewards_by_triggerway):
+    """绘制rewards_by_triggerway的柱状图"""
+    bar_width = 0.2
+    index = np.arange(len(noise_levels))
+
+    plt.figure(figsize=(12, 8))
+
+    for i, triggerway in enumerate(triggerways):
+        means = [np.mean(rewards_by_triggerway[triggerway][noise]) for noise in noise_levels]
+        errors = [np.std(rewards_by_triggerway[triggerway][noise]) for noise in noise_levels]
+        plt.bar(index + i * bar_width, means, bar_width, yerr=errors, label=f'Triggerway {triggerway}')
+
+    plt.xlabel('Noise Level')
+    plt.ylabel('Reward')
+    plt.title('Rewards by Triggerway and Noise Level')
+    plt.xticks(index + bar_width, [str(noise) for noise in noise_levels])
+    plt.legend()
+    plt.tight_layout()
+
+    # 保存柱状图
+    plt.savefig(os.path.join(output_folder, 'rewards_by_triggerway_bar_chart.png'))
+    plt.close()
+
+def test_with_expert_and_noise(env, agent, expert_agent, opt, episodes=1000, use_saved_data=False):
+    # 定义保存图像的文件夹
+    output_folder = 'result'
+    if not os.path.exists(output_folder):
+        os.makedirs(output_folder)
+
+    # 触发方式和阈值组合
+    triggerways = [0, 1, 2]
+    thresholds = [0, 0.2, 0.4]  
+    noise = [0, 0.1, 0.2, 0.3, 0.4, 0.5]
+
+    # 记录 mean 和 variance 的字典
+    mean_results = {0: [], 1: [], 2: []}  # 记录每个 triggerway 的 mean
+    var_results = {0: [], 1: [], 2: []}   # 记录每个 triggerway 的 variance
+    call_expert_times = {0: [], 1: [], 2: []}   # 记录每个 triggerway 的 variance
+
+    # 记录每个 triggerway 和 threshold 的 rewards，用于绘制图表
+    rewards_by_triggerway = {0: {th: [] for th in noise}, 
+                            1: {th: [] for th in noise}, 
+                            2: {th: [] for th in noise}}
+
+    if not use_saved_data:
+        for triggerway in triggerways:
+            threshold = thresholds[triggerway]
+            for noise_level in noise:
+                # 收集测试数据
+                reward_with_expert, call_times, call_station = collect_test_data(True, triggerway, threshold, env, agent, expert_agent, opt, episodes=episodes, noise_level=noise_level)
+                # 计算 mean 和 variance
+                with_expert_mean = np.mean(reward_with_expert)
+                with_expert_variance = np.var(reward_with_expert)
+
+                # 保存 mean 和 variance 到对应的字典
+                mean_results[triggerway].append(with_expert_mean)
+                var_results[triggerway].append(with_expert_variance)
+                call_expert_times[triggerway].append(call_times)
+
+                # 打印统计信息
+                print(f"Triggerway {triggerway}, noise_level {noise_level:.2f}:")
+                print(f"With Expert - Mean: {with_expert_mean:.4f}, Variance: {with_expert_variance:.4f}, Call_times: {call_times}")
+                print("Call_station:", call_station)
+
+                # 将当前 reward_with_expert 添加到对应的 triggerway 和 threshold 组合中
+                rewards_by_triggerway[triggerway][noise_level] = reward_with_expert
+
+        plot_rewards_by_triggerway(output_folder, triggerways, noise, rewards_by_triggerway)

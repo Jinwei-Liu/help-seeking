@@ -159,7 +159,8 @@ def main():
         expert_agent.load("./model_expert/expert_agent.pth")
         agent.actor.train()
 
-        test_with_expert(env, agent, expert_agent, opt, episodes=10)
+        # test_with_expert(env, agent, expert_agent, opt, episodes=10)
+        test_with_expert_and_noise(env, agent, expert_agent, opt, episodes=1)
 
     env.close()
     eval_env.close()
