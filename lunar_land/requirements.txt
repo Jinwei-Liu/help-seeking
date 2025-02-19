@@ -1,0 +1,7 @@
+gym[box2D]
+matplotlib
+tqdm
+tensorboard
+numpy==1.25.0
+scikit-fuzzy
+scipy
