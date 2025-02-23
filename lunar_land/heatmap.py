@@ -149,7 +149,7 @@ def plot_heatmap(heatmap, x_range, y_range, save_address, vmin=0, vmax=1):
     plt.savefig(save_address, dpi=1000, bbox_inches='tight', facecolor='white')
     plt.close()
 
-def draw_action_var_heatmap(env, agent, opt, save_address, use_saved_data=True, episodes=1000, grid_size=(100, 100), x_range=(-1, 1), y_range=(-0.1, 1.5), form=2):
+def draw_action_var_heatmap(env, agent, opt, save_address, use_saved_data=True, episodes=1000, grid_size=(100, 100), x_range=(-1, 1), y_range=(-0.1, 1.5), form=1):
     # 根据不同形式创建对应的文件夹名
     form_name = f"form{form}"
     output_folder = os.path.join('heatmap', form_name)

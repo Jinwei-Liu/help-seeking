@@ -35,7 +35,7 @@ def collect_test_data(use_expert, triggerway, threshold, env, agent, expert_agen
     rewards_per_episode = []  # 用于存储每个回合的总奖励
     call_times = 0
     call_station = {0: [0,0], 1: [0,0], 2: [0,0]}
-    for _ in tqdm(range(episodes), desc="Progress"):  # 使用 tqdm 显示测试进度条
+    for _ in tqdm(range(episodes), desc="Progress {}".format(noise_level)):  # 使用 tqdm 显示测试进度条
         station = 0
         call_station[station][0] += 1
         aim_position = random.randint(1, 9)

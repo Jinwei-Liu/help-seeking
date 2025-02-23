@@ -1,4 +1,5 @@
-gym[box2D]
+gym
+box2d
 matplotlib
 tqdm
 tensorboard
