@@ -7,6 +7,7 @@ import argparse
 import torch
 import random
 from random import choice
+import torch.multiprocessing as mp
 from LunarLander_env import *
 from heatmap import *
 from test_with_expert import *
@@ -155,15 +156,39 @@ def main():
 
     else:
         print("call_expert")
-        expert_agent = TD3(**vars(opt)) # var: transfer argparse to dictionary
-        expert_agent.load("./model_expert/expert_agent.pth")
-        agent.actor.train()
+        processes = []
+        noise_levels = [0, 0.1, 0.2, 0.3, 0.4]
+        signal_queue = mp.Queue(maxsize=10)
+        for noise_level in noise_levels:
+            p = mp.Process(target=worker_process, args=(opt, noise_level, signal_queue))
+            p.start()
+            processes.append(p)
 
-        # test_with_expert(env, agent, expert_agent, opt, episodes=10)
-        test_with_expert_and_noise(env, agent, expert_agent, opt, episodes=1)
+        finished_processes = 0
+        while finished_processes < len(noise_levels):
+            finished_noise_level = signal_queue.get()
+            print(f"Process with noise level {finished_noise_level} has finished.")
+            finished_processes += 1
 
+        for p in processes:
+            p.terminate()
+        for p in processes:
+            p.join()
+        
     env.close()
     eval_env.close()
+
+def worker_process(opt, noise_level, signal_queue):
+    env = gym.make(EnvName[opt.EnvIdex], continuous=True)
+    agent = TD3(**vars(opt))
+    agent.load("./model_TD3/{}_{}_{}.pth".format(EnvName[opt.EnvIdex], opt.ModelIdex, "difficult" if opt.difficult_mode else "easy"))
+    expert_agent = TD3(**vars(opt))
+    expert_agent.load("./model_expert/expert_agent.pth")
+
+    test_with_expert(env, agent, expert_agent, opt, episodes=100, noise_level=noise_level)
+
+    signal_queue.put(noise_level)
+
 
 if __name__ == '__main__':
     main()

@@ -1,6 +1,7 @@
 import numpy as np
 import skfuzzy as fuzz
 from skfuzzy import control as ctrl
+import matplotlib.pyplot as plt
 
 def fuzzy_inference(strategy_uncertainty_value, reward_uncertainty_value):
 
@@ -49,12 +50,28 @@ def fuzzy_inference(strategy_uncertainty_value, reward_uncertainty_value):
     # 输出结果
     output_value = sim.output['output']
 
-    # # 可视化隶属函数
-    # strategy_uncertainty.view()
-    # reward_uncertainty.view()
-    # output.view()
-
     return output_value
+
+def visualize_relationship():
+    strategy_uncertainty = np.arange(0, 1.1, 0.1)
+    reward_uncertainty = np.arange(0, 1.1, 0.1)
+    output_values = np.zeros((len(strategy_uncertainty), len(reward_uncertainty)))
+
+    for i, su in enumerate(strategy_uncertainty):
+        for j, ru in enumerate(reward_uncertainty):
+            output_values[i, j] = fuzzy_inference(su, ru)
+
+    fig = plt.figure(figsize=(10, 7))
+    ax = fig.add_subplot(111, projection='3d')
+    X, Y = np.meshgrid(strategy_uncertainty, reward_uncertainty)
+    ax.plot_surface(X, Y, output_values.T, cmap='viridis')
+    ax.set_xlabel('Strategy Uncertainty', fontsize=12)
+    ax.set_ylabel('Reward Uncertainty', fontsize=12)
+    ax.set_zlabel('Output', fontsize=12)
+    ax.set_title('Relationship between Uncertainties and Output', fontsize=15)
+    ax.view_init(elev=30, azim=-110)  
+    plt.savefig('relationship.png', dpi=1000)
+    # plt.show()
 
 if __name__ == "__main__":
     # 调用示例
@@ -70,3 +87,4 @@ if __name__ == "__main__":
     result = fuzzy_inference(0.35, 0.0)
     print(f"推理输出值: {result}")
 
+    visualize_relationship()

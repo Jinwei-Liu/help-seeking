@@ -128,8 +128,7 @@ def plot_heatmap(heatmap, x_range, y_range, save_address, vmin=0, vmax=1):
     plt.rcParams['axes.facecolor'] = 'white'
 
     # 创建图像
-    fig, ax = plt.subplots(figsize=(8, 6))
-    
+    fig, ax = plt.subplots(figsize=(12, 6))
     # 绘制热力图
     im = ax.imshow(heatmap.T, cmap=custom_cmap, origin='lower',
                    extent=[x_ticks.min(), x_ticks.max(), y_ticks.min(), y_ticks.max()],
@@ -144,12 +143,13 @@ def plot_heatmap(heatmap, x_range, y_range, save_address, vmin=0, vmax=1):
     ax.set_title("Average Variance", fontsize=12, pad=10)
     ax.set_xlabel("x", fontsize=10)
     ax.set_ylabel("y", fontsize=10)
+    ax.set_aspect('equal', adjustable='box')
     
     # 保存图片
-    plt.savefig(save_address, dpi=300, bbox_inches='tight', facecolor='white')
+    plt.savefig(save_address, dpi=1000, bbox_inches='tight', facecolor='white')
     plt.close()
 
-def draw_action_var_heatmap(env, agent, opt, save_address, use_saved_data=False, episodes=1000, grid_size=(100, 100), x_range=(-1, 1), y_range=(-0.1, 1.5), form=2):
+def draw_action_var_heatmap(env, agent, opt, save_address, use_saved_data=True, episodes=1000, grid_size=(100, 100), x_range=(-1, 1), y_range=(-0.1, 1.5), form=2):
     # 根据不同形式创建对应的文件夹名
     form_name = f"form{form}"
     output_folder = os.path.join('heatmap', form_name)
