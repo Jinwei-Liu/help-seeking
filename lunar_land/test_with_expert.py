@@ -35,7 +35,7 @@ def collect_test_data(use_expert, triggerway, threshold, env, agent, expert_agen
     rewards_per_episode = []  # 用于存储每个回合的总奖励
     call_times = 0
     call_station = {0: [0,0], 1: [0,0], 2: [0,0]}
-    for _ in tqdm(range(episodes), desc="Progress {}".format(noise_level)):  # 使用 tqdm 显示测试进度条
+    for _ in tqdm(range(episodes), desc="Progress {} {}".format(noise_level, threshold)):  # 使用 tqdm 显示测试进度条
         station = 0
         call_station[station][0] += 1
         aim_position = random.randint(1, 9)
@@ -186,7 +186,7 @@ def test_with_expert(env, agent, expert_agent, opt, episodes=1000, use_saved_dat
 
     # 触发方式和阈值组合
     triggerways = [0, 1, 2]
-    thresholds = np.arange(0.0, 1.02, 0.02)  # 阈值从 0 到 1，步长为 0.02
+    thresholds = np.arange(0.0, 1.02, 0.01)  # 阈值从 0 到 1，步长为 0.02
 
     # 记录 mean 和 variance 的字典
     mean_results = {0: [], 1: [], 2: []}  # 记录每个 triggerway 的 mean

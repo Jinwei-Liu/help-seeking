@@ -158,7 +158,7 @@ def main():
         print("call_expert")
         mp.set_start_method('spawn')
         processes = []
-        noise_levels = [0, 0.05, 0.1, 0.15, 0.2]
+        noise_levels = [0.01, 0.02, 0.03]
         signal_queue = mp.Queue(maxsize=10)
         for noise_level in noise_levels:
             p = mp.Process(target=worker_process, args=(opt, noise_level, signal_queue))
@@ -186,7 +186,7 @@ def worker_process(opt, noise_level, signal_queue):
     expert_agent = TD3(**vars(opt))
     expert_agent.load("./model_expert/expert_agent.pth")
 
-    test_with_expert(env, agent, expert_agent, opt, episodes=100, noise_level=noise_level)
+    test_with_expert(env, agent, expert_agent, opt, episodes=10, noise_level=noise_level)
     env.close()
     signal_queue.put(noise_level)
 
