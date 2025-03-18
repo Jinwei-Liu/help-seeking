@@ -3,54 +3,59 @@ import skfuzzy as fuzz
 from skfuzzy import control as ctrl
 import matplotlib.pyplot as plt
 
+class FuzzyInferenceSystem:
+    def __init__(self):
+        # 定义输入变量
+        self.strategy_uncertainty = ctrl.Antecedent(np.arange(0, 1.1, 0.1), 'strategy_uncertainty')
+        self.reward_uncertainty = ctrl.Antecedent(np.arange(0, 1.1, 0.1), 'reward_uncertainty')
+
+        # 定义输出变量
+        self.output = ctrl.Consequent(np.arange(0, 1.1, 0.1), 'output')
+
+        # 定义隶属函数（模糊集合）
+        self.strategy_uncertainty['low'] = fuzz.trapmf(self.strategy_uncertainty.universe, [0, 0, 0.3, 0.5])
+        self.strategy_uncertainty['medium'] = fuzz.trimf(self.strategy_uncertainty.universe, [0.3, 0.5, 0.9])
+        self.strategy_uncertainty['high'] = fuzz.trapmf(self.strategy_uncertainty.universe, [0.5, 0.7, 1, 1])
+
+        self.reward_uncertainty['low'] = fuzz.trapmf(self.reward_uncertainty.universe, [0, 0, 0.3, 0.5])
+        self.reward_uncertainty['medium'] = fuzz.trimf(self.reward_uncertainty.universe, [0.3, 0.5, 0.7])
+        self.reward_uncertainty['high'] = fuzz.trapmf(self.reward_uncertainty.universe, [0.5, 0.7, 1, 1])
+
+        self.output['low'] = fuzz.trapmf(self.output.universe, [0, 0, 0.3, 0.6])
+        self.output['medium'] = fuzz.trimf(self.output.universe, [0.5, 0.5, 0.8])
+        self.output['high'] = fuzz.trapmf(self.output.universe, [0.7, 0.9, 1, 1])
+
+        # 定义模糊规则
+        rule1 = ctrl.Rule(self.strategy_uncertainty['low'] & self.reward_uncertainty['low'], self.output['low'])
+        rule2 = ctrl.Rule(self.strategy_uncertainty['low'] & self.reward_uncertainty['medium'], self.output['medium'])
+        rule3 = ctrl.Rule(self.strategy_uncertainty['low'] & self.reward_uncertainty['high'], self.output['high'])
+        rule4 = ctrl.Rule(self.strategy_uncertainty['medium'] & self.reward_uncertainty['low'], self.output['medium'])
+        rule5 = ctrl.Rule(self.strategy_uncertainty['medium'] & self.reward_uncertainty['medium'], self.output['high'])
+        rule6 = ctrl.Rule(self.strategy_uncertainty['medium'] & self.reward_uncertainty['high'], self.output['high'])
+        rule7 = ctrl.Rule(self.strategy_uncertainty['high'] & self.reward_uncertainty['low'], self.output['high'])
+        rule8 = ctrl.Rule(self.strategy_uncertainty['high'] & self.reward_uncertainty['medium'], self.output['high'])
+        rule9 = ctrl.Rule(self.strategy_uncertainty['high'] & self.reward_uncertainty['high'], self.output['high'])
+
+        # 创建控制系统
+        self.system = ctrl.ControlSystem([rule1, rule2, rule3, rule4, rule5, rule6, rule7, rule8, rule9])
+        self.sim = ctrl.ControlSystemSimulation(self.system)
+
+    def infer(self, strategy_uncertainty_value, reward_uncertainty_value):
+        # 输入值
+        self.sim.input['strategy_uncertainty'] = strategy_uncertainty_value
+        self.sim.input['reward_uncertainty'] = reward_uncertainty_value
+
+        # 运行模糊推理
+        self.sim.compute()
+
+        # 输出结果
+        return self.sim.output['output']
+
+# 创建全局的 FuzzyInferenceSystem 实例
+fis = FuzzyInferenceSystem()
+
 def fuzzy_inference(strategy_uncertainty_value, reward_uncertainty_value):
-
-    # 定义输入变量
-    strategy_uncertainty = ctrl.Antecedent(np.arange(0, 1.1, 0.1), 'strategy_uncertainty')
-    reward_uncertainty = ctrl.Antecedent(np.arange(0, 1.1, 0.1), 'reward_uncertainty')
-
-    # 定义输出变量
-    output = ctrl.Consequent(np.arange(0, 1.1, 0.1), 'output')
-
-    # 定义隶属函数（模糊集合）
-    strategy_uncertainty['low'] = fuzz.trapmf(strategy_uncertainty.universe, [0, 0, 0.3, 0.5])
-    strategy_uncertainty['medium'] = fuzz.trimf(strategy_uncertainty.universe, [0.3, 0.5, 0.7])
-    strategy_uncertainty['high'] = fuzz.trapmf(strategy_uncertainty.universe, [0.5, 0.7, 1, 1])
-
-    reward_uncertainty['low'] = fuzz.trapmf(reward_uncertainty.universe, [0, 0, 0.3, 0.5])
-    reward_uncertainty['medium'] = fuzz.trimf(reward_uncertainty.universe, [0.3, 0.5, 0.7])
-    reward_uncertainty['high'] = fuzz.trapmf(reward_uncertainty.universe, [0.5, 0.7, 1, 1])
-
-    output['low'] = fuzz.trapmf(output.universe, [0, 0, 0.3, 0.5])
-    output['medium'] = fuzz.trimf(output.universe, [0.3, 0.5, 0.7])
-    output['high'] = fuzz.trapmf(output.universe, [0.5, 0.7, 1, 1])
-
-    # 定义模糊规则
-    rule1 = ctrl.Rule(strategy_uncertainty['low'] & reward_uncertainty['low'], output['low'])
-    rule2 = ctrl.Rule(strategy_uncertainty['low'] & reward_uncertainty['medium'], output['medium'])
-    rule3 = ctrl.Rule(strategy_uncertainty['low'] & reward_uncertainty['high'], output['high'])
-    rule4 = ctrl.Rule(strategy_uncertainty['medium'] & reward_uncertainty['low'], output['high'])
-    rule5 = ctrl.Rule(strategy_uncertainty['medium'] & reward_uncertainty['medium'], output['high'])
-    rule6 = ctrl.Rule(strategy_uncertainty['medium'] & reward_uncertainty['high'], output['high'])
-    rule7 = ctrl.Rule(strategy_uncertainty['high'] & reward_uncertainty['low'], output['high'])
-    rule8 = ctrl.Rule(strategy_uncertainty['high'] & reward_uncertainty['medium'], output['high'])
-    rule9 = ctrl.Rule(strategy_uncertainty['high'] & reward_uncertainty['high'], output['high'])
-
-    # 创建控制系统
-    system = ctrl.ControlSystem([rule1, rule2, rule3, rule4, rule5, rule6, rule7, rule8, rule9])
-    sim = ctrl.ControlSystemSimulation(system)
-
-    # 输入值
-    sim.input['strategy_uncertainty'] = strategy_uncertainty_value
-    sim.input['reward_uncertainty'] = reward_uncertainty_value
-
-    # 运行模糊推理
-    sim.compute()
-
-    # 输出结果
-    output_value = sim.output['output']
-
-    return output_value
+    return fis.infer(strategy_uncertainty_value, reward_uncertainty_value)
 
 def visualize_relationship():
     strategy_uncertainty = np.arange(0, 1.1, 0.1)
@@ -71,7 +76,7 @@ def visualize_relationship():
     ax.set_title('Relationship between Uncertainties and Output', fontsize=15)
     ax.view_init(elev=30, azim=-110)  
     plt.savefig('relationship.png', dpi=1000)
-    # plt.show()
+    plt.show()
 
 if __name__ == "__main__":
     # 调用示例

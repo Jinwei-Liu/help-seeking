@@ -69,7 +69,6 @@ print(opt)
 EnvName = ['CustomLunarLander']
 
 def main():
-
     # # Build Env
     if opt.render:
         env = gym.make(EnvName[opt.EnvIdex], continuous=True, render_mode = 'human')
@@ -78,7 +77,7 @@ def main():
         env = gym.make(EnvName[opt.EnvIdex], continuous=True) #, enable_wind=True
         env.action_space.seed(opt.seed)
     eval_env = gym.make(EnvName[opt.EnvIdex], continuous=True)
-    opt.state_dim = env.observation_space.shape[0] + 9
+    opt.state_dim = env.observation_space.shape[0] + 9                
     opt.action_dim = env.action_space.shape[0]
     opt.max_action = float(env.action_space.high[0])   #remark: action space【-max,max】
     opt.max_e_steps = env._max_episode_steps
@@ -156,25 +155,31 @@ def main():
 
     else:
         print("call_expert")
-        mp.set_start_method('spawn')
-        processes = []
-        noise_levels = [0.01, 0.02, 0.03]
-        signal_queue = mp.Queue(maxsize=10)
-        for noise_level in noise_levels:
-            p = mp.Process(target=worker_process, args=(opt, noise_level, signal_queue))
-            p.start()
-            processes.append(p)
+        # test_with_expert_fast(env, agent, opt, episodes=100, noise_level=0)
 
-        finished_processes = 0
-        while finished_processes < len(noise_levels):
-            finished_noise_level = signal_queue.get()
-            print(f"Process with noise level {finished_noise_level} has finished.")
-            finished_processes += 1
+        expert_agent = TD3(**vars(opt))
+        expert_agent.load("./model_expert/expert_agent.pth")
+        test_with_expert(env, agent, expert_agent, opt, episodes=100, noise_level=0)
+        
+        # mp.set_start_method('spawn')
+        # processes = []
+        # noise_levels = [0.01, 0.02, 0.03]
+        # signal_queue = mp.Queue(maxsize=10)
+        # for noise_level in noise_levels:
+        #     p = mp.Process(target=worker_process, args=(opt, noise_level, signal_queue))
+        #     p.start()
+        #     processes.append(p)
 
-        for p in processes:
-            p.terminate()
-        for p in processes:
-            p.join()
+        # finished_processes = 0
+        # while finished_processes < len(noise_levels):
+        #     finished_noise_level = signal_queue.get()
+        #     print(f"Process with noise level {finished_noise_level} has finished.")
+        #     finished_processes += 1
+
+        # for p in processes:
+        #     p.terminate()
+        # for p in processes:
+        #     p.join()
         
     env.close()
     eval_env.close()
@@ -186,7 +191,7 @@ def worker_process(opt, noise_level, signal_queue):
     expert_agent = TD3(**vars(opt))
     expert_agent.load("./model_expert/expert_agent.pth")
 
-    test_with_expert(env, agent, expert_agent, opt, episodes=10, noise_level=noise_level)
+    test_with_expert(env, agent, expert_agent, opt, episodes=100, noise_level=noise_level)
     env.close()
     signal_queue.put(noise_level)
 
