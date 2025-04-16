@@ -58,24 +58,31 @@ def fuzzy_inference(strategy_uncertainty_value, reward_uncertainty_value):
     return fis.infer(strategy_uncertainty_value, reward_uncertainty_value)
 
 def visualize_relationship():
-    strategy_uncertainty = np.arange(0, 1.1, 0.1)
-    reward_uncertainty = np.arange(0, 1.1, 0.1)
+    """ Generate a 3D plot to visualize the relationship between uncertainties and the fuzzy output. """
+    strategy_uncertainty = np.linspace(0, 1, 11)
+    reward_uncertainty = np.linspace(0, 1, 11)
     output_values = np.zeros((len(strategy_uncertainty), len(reward_uncertainty)))
 
+    # Compute fuzzy output for the entire range
     for i, su in enumerate(strategy_uncertainty):
         for j, ru in enumerate(reward_uncertainty):
             output_values[i, j] = fuzzy_inference(su, ru)
 
-    fig = plt.figure(figsize=(10, 7))
+    # Generate 3D surface plot
+    fig = plt.figure(figsize=(7, 7))
     ax = fig.add_subplot(111, projection='3d')
     X, Y = np.meshgrid(strategy_uncertainty, reward_uncertainty)
-    ax.plot_surface(X, Y, output_values.T, cmap='viridis')
+    
+    ax.plot_surface(X, Y, output_values.T, cmap='viridis', edgecolor='gray', alpha=0.7)
     ax.set_xlabel('Strategy Uncertainty', fontsize=12)
     ax.set_ylabel('Reward Uncertainty', fontsize=12)
-    ax.set_zlabel('Output', fontsize=12)
-    ax.set_title('Relationship between Uncertainties and Output', fontsize=15)
-    ax.view_init(elev=30, azim=-110)  
-    plt.savefig('relationship.png', dpi=1000)
+    ax.set_zlabel('Fuzzy Output', fontsize=12)
+    # ax.set_title('Fuzzy Inference System Output', fontsize=15)
+    ax.view_init(elev=30, azim=-120)
+    
+    # Improve plot aesthetics
+    ax.grid(True)
+    plt.savefig('fuzzy_relationship.png', dpi=300)
     plt.show()
 
 if __name__ == "__main__":

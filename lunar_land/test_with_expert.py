@@ -30,6 +30,14 @@ def is_triggered(a_variance, reward_var_val, threshold):
     total_uncertain = fuzzy_inference(a_variance[0], reward_var_val)
     return total_uncertain > threshold
 
+def is_triggered_by_a1_variance(a_variance, threshold):
+    return a_variance[1] > threshold
+
+def is_triggered_another(a_variance, reward_var_val, threshold):
+    reward_var_val = normalize_value(reward_var_val, 0, 12000)
+    total_uncertain = fuzzy_inference(a_variance[1], reward_var_val)
+    return total_uncertain > threshold
+
 
 def collect_test_data(use_expert, triggerway, threshold, env, agent, expert_agent, opt, episodes, noise_level=0):
 
@@ -151,10 +159,11 @@ def load_data(output_folder, triggerway, thresholds):
 
 def plot_results(output_folder, triggerways, thresholds, mean_results, var_results, call_expert_times, rewards_by_triggerway):
     """绘制学术风格的散点图（第一张图）"""
-    plt.figure(figsize=(8, 6), dpi=300)  
+    plt.figure(figsize=(12, 6), dpi=300)  
 
     colors = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd"]  
     markers = ["o", "s", "D", "^", "v"]  
+    labels = ["RUBR", "PNUR", "HILHS-TD3(ours)"]
 
     for i, triggerway in enumerate(triggerways):
         x = np.array(call_expert_times[triggerway])
@@ -172,11 +181,11 @@ def plot_results(output_folder, triggerways, thresholds, mean_results, var_resul
         # 绘制原始散点
         plt.scatter(x, y, alpha=0.6, color=colors[i % len(colors)], 
                     edgecolors="black", marker=markers[i % len(markers)], 
-                    label=f"Triggerway {triggerway}")
+                    label=labels[i])
 
         # 绘制平滑曲线
         plt.plot(df["x"], df["y_smooth"], color=colors[i % len(colors)], 
-                 linestyle="-", linewidth=2.5, label=f"Smoothed {triggerway}")
+                 linestyle="-", linewidth=2.5, label=labels[i])
 
     # 学术风格标题 & 坐标轴
     plt.title(r"Mean Return vs. Call Expert Times", fontsize=14, fontweight="bold")
@@ -213,7 +222,7 @@ def plot_results(output_folder, triggerways, thresholds, mean_results, var_resul
         plt.errorbar(thresholds, mean_results[triggerway], yerr=std_dev, 
                      fmt='-o', color=colors[i % len(colors)], marker=markers[i % len(markers)], 
                      capsize=4, capthick=1.5, elinewidth=1.5, alpha=0.9, linewidth=2, 
-                     label=f'Triggerway {triggerway}')
+                     label=labels[i])
 
     # 学术风格标题 & 轴标签
     plt.title(r"Mean and Variance of Rewards for Different Triggerways", fontsize=14, fontweight="bold")
@@ -318,6 +327,12 @@ def collect_test_data_fast(env, agent, opt, episodes, noise_level=0):
             noise_position = np.random.choice([1, 9])
             aim_vector_with_noise[noise_position - 1] = 1
 
+        if random.random() < noise_level:
+            # env.enable_wind = True
+            noise_sign = 1
+        else:
+            # env.enable_wind = False
+            noise_sign = 0
         # 重置环境并设置初始状态
         s, info = env.reset(land_position=aim_position, difficult_mode=opt.difficult_mode)
         # 将噪声目标向量与状态拼接
@@ -361,6 +376,9 @@ def collect_test_data_fast(env, agent, opt, episodes, noise_level=0):
             episode_states.append(s_next.tolist())
             episode_a_variances.append(np.mean(a_variances, axis=0).tolist())
             episode_reward_var_vals.append(np.mean(reward_var_vals).tolist())
+            
+            if noise_sign:
+                s_next += np.random.normal(0, 0.1, s_next.shape)
 
             # 更新下一步状态（带噪声和不带噪声）
             s_next_with_noise = np.append(s_next, aim_vector_with_noise)
@@ -369,7 +387,7 @@ def collect_test_data_fast(env, agent, opt, episodes, noise_level=0):
             done = (dw or tr)
 
             # 更新当前状态为下一步的状态
-            s_with_noise = s_next_with_noise + np.random.normal(0, noise_level, s_next_with_noise.shape)
+            s_with_noise = s_next_with_noise 
 
         all_states.append(episode_states)
         all_rewards.append(total_reward)
@@ -378,91 +396,176 @@ def collect_test_data_fast(env, agent, opt, episodes, noise_level=0):
 
     return all_states, all_rewards, all_a_variances, all_reward_var_vals
 
-def test_with_expert_fast(env, agent, opt, episodes=1000, use_saved_data=True, noise_level=0):
+from scipy.interpolate import interp1d
+def plot_results_fast(output_folder, triggerways, thresholds, all_runs_mean, all_runs_var, all_runs_call_expert_times, all_runs_rewards_by_triggerway):
+    """绘制学术风格的均值曲线 + 误差带（5 轮数据，修正随机横轴问题）"""
+    plt.figure(figsize=(8, 6), dpi=300)  
+
+    colors = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd"]  
+
+    for i, triggerway in enumerate(triggerways):
+        # 提取 5 轮数据
+        means = np.array([run[triggerway] for run in all_runs_mean])  # 5xN
+        variances = np.array([run[triggerway] for run in all_runs_var])  # 5xN
+        calls = np.array([run[triggerway] for run in all_runs_call_expert_times])  # 5xN
+        
+        # **创建通用的 x 轴（x_grid）**
+        all_x_values = np.concatenate(calls)  # 合并 5 轮所有 X 轴
+        x_grid = np.linspace(min(all_x_values), max(all_x_values), 100)  # 统一 100 个点
+
+        # **插值计算（对齐不同曲线）**
+        interpolated_means = []
+        interpolated_stds = []
+
+        for j in range(means.shape[0]):  # 遍历 5 轮
+            f_interp = interp1d(calls[j], means[j], kind='linear', bounds_error=False, fill_value="extrapolate")
+            interpolated_means.append(f_interp(x_grid))
+
+        # 计算 5 轮的均值 & 标准差
+        mean_curve = np.mean(interpolated_means, axis=0)
+        std_curve = np.std(interpolated_means, axis=0)
+
+        # **绘制均值曲线**
+        plt.plot(x_grid, mean_curve, color=colors[i % len(colors)], linestyle="-", linewidth=2, label=f"Triggerway {triggerway}")
+
+        # **绘制误差带（Mean ± Std）**
+        plt.fill_between(x_grid, mean_curve - std_curve, mean_curve + std_curve, color=colors[i % len(colors)], alpha=0.2)
+
+    # 学术风格标题 & 坐标轴
+    plt.title(r"Mean Return vs. Call Expert Times", fontsize=14, fontweight="bold")
+    plt.xlabel(r"Call Expert Times", fontsize=12)
+    plt.ylabel(r"Mean Return", fontsize=12)
+
+    # **设置 Y 轴范围**
+    plt.ylim(100, 400)
+
+    # 网格优化
+    plt.grid(True, linestyle="--", alpha=0.6)
+
+    # 调整刻度字体
+    plt.xticks(fontsize=10)
+    plt.yticks(fontsize=10)
+
+    # 图例放置右下角，带透明背景
+    plt.legend(fontsize=10, loc="lower right", frameon=True, facecolor="white", framealpha=0.8)
+
+    # 保存第一张图
+    save_path = os.path.join(output_folder, "mean_vs_call_expert_with_error_bars.png")
+    plt.savefig(save_path, dpi=300, bbox_inches="tight")
+    plt.show()
+    
+    print(f"图像已保存至 {save_path}")
+
+def test_with_expert_fast(env, agent, opt, episodes=1000, use_saved_data=True, noise_level=0, num_runs=10):
     # 定义保存图像的文件夹
     output_folder = os.path.join('result_fast', f'noise_{noise_level}')
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
 
-    if use_saved_data:
-        try:
-            all_states = np.load(os.path.join(output_folder, 'all_states.npy'), allow_pickle=True).tolist()
-            all_rewards = np.load(os.path.join(output_folder, 'all_rewards.npy'), allow_pickle=True).tolist()
-            all_a_variances = np.load(os.path.join(output_folder, 'all_a_variances.npy'), allow_pickle=True).tolist()
-            all_reward_var_vals = np.load(os.path.join(output_folder, 'all_reward_var_vals.npy'), allow_pickle=True).tolist()
-            print("Successfully loaded saved data from", output_folder)
-        except FileNotFoundError:
-            print("No saved data found. Collecting new data...")
-            use_saved_data = False
-
-    if not use_saved_data:
-        all_states, all_rewards, all_a_variances, all_reward_var_vals = collect_test_data_fast(env, agent, opt, episodes=episodes, noise_level=noise_level)
-        np.save(os.path.join(output_folder, 'all_states.npy'), np.array(all_states, dtype=object))
-        np.save(os.path.join(output_folder, 'all_rewards.npy'), np.array(all_rewards, dtype=object))
-        np.save(os.path.join(output_folder, 'all_a_variances.npy'), np.array(all_a_variances, dtype=object))
-        np.save(os.path.join(output_folder, 'all_reward_var_vals.npy'), np.array(all_reward_var_vals, dtype=object))
-    
     # 触发方式和阈值组合
     triggerways = [0, 1, 2]
-    thresholds = np.arange(0.0, 1.02, 0.01)  # 阈值从 0 到 1，步长为 0.02
+    thresholds = np.arange(0.0, 1.01, 0.01)  # 阈值从 0 到 1，步长为 0.01
 
-    # 记录 mean 和 variance 的字典
-    mean_results = {0: [], 1: [], 2: []}  # 记录每个 triggerway 的 mean
-    var_results = {0: [], 1: [], 2: []}   # 记录每个 triggerway 的 variance
-    call_expert_times = {0: [], 1: [], 2: []}   # 记录每个 triggerway 的 variance
+    # 用于存储 5 轮数据
+    all_runs_mean = []
+    all_runs_var = []
+    all_runs_call_expert_times = []
+    all_runs_rewards_by_triggerway = []
 
-    # 记录每个 triggerway 和 threshold 的 rewards，用于绘制图表
-    rewards_by_triggerway = {0: {th: [] for th in thresholds}, 
-                            1: {th: [] for th in thresholds}, 
-                            2: {th: [] for th in thresholds}}
+    for run_idx in range(num_runs):
+        print(f"\n===== Running Test {run_idx + 1} / {num_runs} =====\n")
+        
+        if use_saved_data:
+            try:
+                all_states = np.load(os.path.join(output_folder, f'all_states_run_{run_idx}.npy'), allow_pickle=True).tolist()
+                all_rewards = np.load(os.path.join(output_folder, f'all_rewards_run_{run_idx}.npy'), allow_pickle=True).tolist()
+                all_a_variances = np.load(os.path.join(output_folder, f'all_a_variances_run_{run_idx}.npy'), allow_pickle=True).tolist()
+                all_reward_var_vals = np.load(os.path.join(output_folder, f'all_reward_var_vals_run_{run_idx}.npy'), allow_pickle=True).tolist()
+                print(f"Successfully loaded saved data from {output_folder} (Run {run_idx})")
+            except FileNotFoundError:
+                print(f"No saved data found for Run {run_idx}. Collecting new data...")
+                use_saved_data = False
 
-    for triggerway in triggerways:
-        for threshold in thresholds:
-            call_times = 0
-            rewards_per_episode = []
-            for episode_index in range(episodes):
-                episode_states = all_states[episode_index]
-                episode_a_variances = all_a_variances[episode_index]
-                episode_reward_var_vals = all_reward_var_vals[episode_index]
-                total_reward = all_rewards[episode_index]
-                
-                calling_expert = False
-                for step_index in range(len(episode_states)):
-                    state = episode_states[step_index]
-                    a_variance = episode_a_variances[step_index]
-                    reward_var_val = episode_reward_var_vals[step_index]
+        if not use_saved_data:
+            all_states, all_rewards, all_a_variances, all_reward_var_vals = collect_test_data_fast(env, agent, opt, episodes=episodes, noise_level=noise_level)
+            np.save(os.path.join(output_folder, f'all_states_run_{run_idx}.npy'), np.array(all_states, dtype=object))
+            np.save(os.path.join(output_folder, f'all_rewards_run_{run_idx}.npy'), np.array(all_rewards, dtype=object))
+            np.save(os.path.join(output_folder, f'all_a_variances_run_{run_idx}.npy'), np.array(all_a_variances, dtype=object))
+            np.save(os.path.join(output_folder, f'all_reward_var_vals_run_{run_idx}.npy'), np.array(all_reward_var_vals, dtype=object))
+        
+        # 记录 mean 和 variance 的字典
+        mean_results = {0: [], 1: [], 2: []}
+        var_results = {0: [], 1: [], 2: []}
+        call_expert_times = {0: [], 1: [], 2: []}
+        rewards_by_triggerway = {0: {th: [] for th in thresholds}, 
+                                1: {th: [] for th in thresholds}, 
+                                2: {th: [] for th in thresholds}}
 
-                    # Mimic the expert assistance logic
-                    if not calling_expert and 0.05 < state[1] < 0.5:
-                        if triggerway == 0:
-                            calling_expert = is_triggered_by_reward_var_val(reward_var_val, threshold)
-                        elif triggerway == 1:
-                            calling_expert = is_triggered_by_a_variance(a_variance, threshold)
-                        else:
-                            calling_expert = is_triggered(a_variance,reward_var_val, threshold)
+        for triggerway in triggerways:
+            for threshold in thresholds:
+                call_times = 0
+                rewards_per_episode = []
+                for episode_index in range(episodes):
+                    episode_states = all_states[episode_index]
+                    episode_a_variances = all_a_variances[episode_index]
+                    episode_reward_var_vals = all_reward_var_vals[episode_index]
+                    total_reward = all_rewards[episode_index]
+
+                    calling_expert = False
+                    for step_index in range(len(episode_states)):
+                        state = episode_states[step_index]
+                        a_variance = episode_a_variances[step_index]
+                        reward_var_val = episode_reward_var_vals[step_index]
+
+                        if not calling_expert and 0.05 < state[1] < 0.5:
+                            if triggerway == 0:
+                                calling_expert = is_triggered_by_reward_var_val(reward_var_val, threshold)
+                            elif triggerway == 1:
+                                calling_expert = is_triggered_by_a_variance(a_variance, threshold)
+                            else:
+                                calling_expert = is_triggered(a_variance, reward_var_val, threshold)
+
+                        if calling_expert:
+                            call_times += 1
+                            total_reward = 390
+                            break
                     
-                    if calling_expert:
-                        call_times += 1
-                        total_reward = 390
-                        break
+                    rewards_per_episode.append(total_reward)
                 
-                rewards_per_episode.append(total_reward)
-            
-            # 计算 mean 和 variance
-            with_expert_mean = np.mean(rewards_per_episode)
-            with_expert_variance = np.var(rewards_per_episode)
+                # 计算 mean 和 variance
+                with_expert_mean = np.mean(rewards_per_episode)
+                with_expert_variance = np.var(rewards_per_episode)
 
-            # 保存 mean 和 variance 到对应的字典
-            mean_results[triggerway].append(with_expert_mean)
-            var_results[triggerway].append(with_expert_variance)
-            call_expert_times[triggerway].append(call_times)
+                # 保存 mean 和 variance 到对应的字典从此
+                mean_results[triggerway].append(with_expert_mean)
+                var_results[triggerway].append(with_expert_variance)
+                call_expert_times[triggerway].append(call_times)
+                # 打印统计信息
+                print(f"Triggerway {triggerway}, Threshold {threshold:.2f}:")
+                print(f"With Expert - Mean: {with_expert_mean:.4f}, Variance: {with_expert_variance:.4f}, Call_times: {call_times}")
 
-            # 打印统计信息
-            print(f"Triggerway {triggerway}, Threshold {threshold:.2f}:")
-            print(f"With Expert - Mean: {with_expert_mean:.4f}, Variance: {with_expert_variance:.4f}, Call_times: {call_times}")
+                # 存储 rewards
+                rewards_by_triggerway[triggerway][threshold] = rewards_per_episode
 
-            # 将当前 rewards_per_episode 添加到对应的 triggerway 和 threshold 组合中
-            rewards_by_triggerway[triggerway][threshold] = rewards_per_episode
+        # 记录本轮数据
+        all_runs_mean.append(mean_results)
+        all_runs_var.append(var_results)
+        all_runs_call_expert_times.append(call_expert_times)
+        all_runs_rewards_by_triggerway.append(rewards_by_triggerway)
 
-    # 调用绘图函数
-    plot_results(output_folder, triggerways, thresholds, mean_results, var_results, call_expert_times, rewards_by_triggerway)
+        # 保存本轮数据
+        np.save(os.path.join(output_folder, f'mean_results_run_{run_idx}.npy'), mean_results)
+        np.save(os.path.join(output_folder, f'var_results_run_{run_idx}.npy'), var_results)
+        np.save(os.path.join(output_folder, f'call_expert_times_run_{run_idx}.npy'), call_expert_times)
+        np.save(os.path.join(output_folder, f'rewards_by_triggerway_run_{run_idx}.npy'), rewards_by_triggerway)
+
+    # 保存所有轮数据
+    np.save(os.path.join(output_folder, 'all_runs_mean.npy'), all_runs_mean)
+    np.save(os.path.join(output_folder, 'all_runs_var.npy'), all_runs_var)
+    np.save(os.path.join(output_folder, 'all_runs_call_expert_times.npy'), all_runs_call_expert_times)
+    np.save(os.path.join(output_folder, 'all_runs_rewards_by_triggerway.npy'), all_runs_rewards_by_triggerway)
+
+    print("\n===== All Runs Completed and Saved Successfully! =====\n")
+
+    # 你可以选择绘制 num_runs 轮数据的均值或分别绘制 num_runs 轮
+    plot_results_fast(output_folder, triggerways, thresholds, all_runs_mean, all_runs_var, all_runs_call_expert_times, all_runs_rewards_by_triggerway)

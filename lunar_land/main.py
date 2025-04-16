@@ -155,47 +155,15 @@ def main():
 
     else:
         print("call_expert")
-        # test_with_expert_fast(env, agent, opt, episodes=100, noise_level=0)
+        # test_with_expert_fast(env, agent, opt, episodes=100, noise_level=0.3)
 
         expert_agent = TD3(**vars(opt))
         expert_agent.load("./model_expert/expert_agent.pth")
         test_with_expert(env, agent, expert_agent, opt, episodes=100, noise_level=0)
-        
-        # mp.set_start_method('spawn')
-        # processes = []
-        # noise_levels = [0.01, 0.02, 0.03]
-        # signal_queue = mp.Queue(maxsize=10)
-        # for noise_level in noise_levels:
-        #     p = mp.Process(target=worker_process, args=(opt, noise_level, signal_queue))
-        #     p.start()
-        #     processes.append(p)
 
-        # finished_processes = 0
-        # while finished_processes < len(noise_levels):
-        #     finished_noise_level = signal_queue.get()
-        #     print(f"Process with noise level {finished_noise_level} has finished.")
-        #     finished_processes += 1
-
-        # for p in processes:
-        #     p.terminate()
-        # for p in processes:
-        #     p.join()
-        
     env.close()
     eval_env.close()
 
-def worker_process(opt, noise_level, signal_queue):
-    env = gym.make(EnvName[opt.EnvIdex], continuous=True)
-    agent = TD3(**vars(opt))
-    agent.load("./model_TD3/{}_{}_{}.pth".format(EnvName[opt.EnvIdex], opt.ModelIdex, "difficult" if opt.difficult_mode else "easy"))
-    expert_agent = TD3(**vars(opt))
-    expert_agent.load("./model_expert/expert_agent.pth")
-
-    test_with_expert(env, agent, expert_agent, opt, episodes=100, noise_level=noise_level)
-    env.close()
-    signal_queue.put(noise_level)
-
-
 if __name__ == '__main__':
     main()
-
+ 
